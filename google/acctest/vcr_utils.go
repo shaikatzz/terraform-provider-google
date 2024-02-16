@@ -27,6 +27,7 @@ import (
 	tpgprovider "github.com/hashicorp/terraform-provider-google/google/provider"
 	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
 	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
+	"github.com/hashicorp/terraform-provider-google/version"
 
 	"github.com/dnaeon/go-vcr/cassette"
 	"github.com/dnaeon/go-vcr/recorder"
@@ -383,7 +384,7 @@ func HandleVCRConfiguration(ctx context.Context, testName string, rndTripper htt
 func NewFrameworkTestProvider(testName string) *frameworkTestProvider {
 	return &frameworkTestProvider{
 		FrameworkProvider: fwprovider.FrameworkProvider{
-			Version: "test",
+			Version: version.ProviderVersion,
 		},
 		TestName: testName,
 	}
