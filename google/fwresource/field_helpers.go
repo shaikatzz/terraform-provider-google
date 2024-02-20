@@ -35,6 +35,25 @@ func getProjectFromFrameworkSchema(projectSchemaField string, rVal, pVal types.S
 	return types.String{}
 }
 
+// GetBillingProjectFramework reads the "billing_project" field from the given resource data and falls
+// back to the provider's value if not given. If no value is found, an error is returned.
+func GetBillingProjectFramework(rVal, pVal types.String, diags *diag.Diagnostics) types.String {
+	return getBillingProjectFrameworkSchema("project", rVal, pVal, diags)
+}
+
+func getBillingProjectFrameworkSchema(billingProjectSchemaField string, rVal, pVal types.String, diags *diag.Diagnostics) types.String {
+	if !rVal.IsNull() && rVal.ValueString() != "" {
+		return rVal
+	}
+
+	if !pVal.IsNull() && pVal.ValueString() != "" {
+		return pVal
+	}
+
+	diags.AddError("required field is not set", fmt.Sprintf("%s is not set", billingProjectSchemaField))
+	return types.StringNull()
+}
+
 // Parses a project field with the following formats:
 // - projects/{my_projects}/{resource_type}/{resource_name}
 func ParseProjectFieldValueFramework(resourceType, fieldValue, projectSchemaField string, rVal, pVal types.String, isEmptyValid bool, diags *diag.Diagnostics) *tpgresource.ProjectFieldValue {

@@ -5,8 +5,7 @@ package dns
 import (
 	"context"
 	"fmt"
-
-	"google.golang.org/api/dns/v1"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -32,8 +31,8 @@ func NewGoogleDnsManagedZoneDataSource() datasource.DataSource {
 
 // GoogleDnsManagedZoneDataSource defines the data source implementation
 type GoogleDnsManagedZoneDataSource struct {
-	client  *dns.Service
-	project types.String
+	providerConfig *fwtransport.FrameworkProviderConfig
+	project        types.String
 }
 
 type GoogleDnsManagedZoneModel struct {
@@ -131,8 +130,8 @@ func (d *GoogleDnsManagedZoneDataSource) Configure(ctx context.Context, req data
 		return
 	}
 
-	d.client = p.NewDnsClient(p.UserAgent, &resp.Diagnostics)
 	d.project = p.Project
+	d.providerConfig = p
 }
 
 func (d *GoogleDnsManagedZoneDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -146,35 +145,57 @@ func (d *GoogleDnsManagedZoneDataSource) Read(ctx context.Context, req datasourc
 		return
 	}
 
-	d.client.UserAgent = fwtransport.GenerateFrameworkUserAgentString(metaData, d.client.UserAgent)
-
 	// Read Terraform configuration data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	billingProject := ""
+
 	data.Project = fwresource.GetProjectFramework(data.Project, d.project, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	billingProject = data.Project.ValueString()
 
-	data.Id = types.StringValue(fmt.Sprintf("projects/%s/managedZones/%s", data.Project.ValueString(), data.Name.ValueString()))
-	clientResp, err := d.client.ManagedZones.Get(data.Project.ValueString(), data.Name.ValueString()).Do()
-	if err != nil {
-		fwtransport.HandleDatasourceNotFoundError(ctx, err, &resp.State, fmt.Sprintf("dataSourceDnsManagedZone %q", data.Name.ValueString()), &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	bp := fwresource.GetBillingProjectFramework(data.Project, d.project, &resp.Diagnostics)
+	if !bp.IsNull() {
+		billingProject = bp.ValueString()
 	}
 
-	tflog.Trace(ctx, "read dns managed zone data source")
+	data.Id = types.StringValue(fmt.Sprintf("projects/%s/managedZones/%s", data.Project.ValueString(), data.Name.ValueString()))
 
-	data.DnsName = types.StringValue(clientResp.DnsName)
-	data.Description = types.StringValue(clientResp.Description)
-	data.ManagedZoneId = types.Int64Value(int64(clientResp.Id))
-	data.Visibility = types.StringValue(clientResp.Visibility)
-	data.NameServers, diags = types.ListValueFrom(ctx, types.StringType, clientResp.NameServers)
+	userAgent := fwtransport.GenerateFrameworkUserAgentString(metaData, d.providerConfig.UserAgent)
+
+	path := fmt.Sprintf("projects/%s/managedZones/%s", data.Project.ValueString(), data.Name.ValueString())
+	url := d.providerConfig.DNSBasePath + path
+
+	tflog.Debug(ctx, "reading dns managed zone data source")
+
+	res, diags := fwtransport.SendFrameworkRequest(d.providerConfig, "GET", billingProject, url, userAgent, nil)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	dnsName := res["dnsName"].(string)
+	data.DnsName = types.StringValue(dnsName)
+
+	description := res["description"].(string)
+	data.Description = types.StringValue(description)
+
+	id, err := strconv.Atoi(res["id"].(string))
+	if err != nil {
+		diags.AddError("unable to parse managedZoneId from API response", err.Error())
+	}
+	data.ManagedZoneId = types.Int64Value(int64(id))
+
+	visibility := res["visibility"].(string)
+	data.Visibility = types.StringValue(visibility)
+
+	nameServers := res["nameServers"].([]interface{})
+	data.NameServers, diags = types.ListValueFrom(ctx, types.StringType, nameServers)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
