@@ -19,6 +19,7 @@ import vcs_roots.ModularMagicianVCSRootBeta
 import vcs_roots.ModularMagicianVCSRootGa
 
 const val featureBranchProviderFunctionsName = "FEATURE-BRANCH-provider-functions"
+const val providerFunctionsTfCoreVersion = "1.8.0-alpha20240228"
 
 // VCS Roots specifically for pulling code from the feature branches in the downstream and upstream repos
 object HashicorpVCSRootGa_featureBranchProviderFunctions: GitVcsRoot({
@@ -66,6 +67,12 @@ fun featureBranchProviderFunctionSubProject(allConfig: AllContextParameters): Pr
     parentId = "${projectId}_MM_BETA"
     val buildConfigModularMagicianBeta = BuildConfigurationForSinglePackage(packageName, functionPackageBeta.getValue("path"), "Provider-Defined Functions (Beta provider, MM upstream)", ProviderNameBeta, parentId, ModularMagicianVCSRootBeta, sharedResourcesEmpty, vcrConfig)
 
+    val allBuildConfigs = listOf(buildConfigHashiCorpGa, buildConfigModularMagicianGa, buildConfigHashiCorpBeta, buildConfigModularMagicianBeta)
+    // Make these builds use a 1.8.0-ish version of TF core
+    allBuildConfigs.forEach{ b ->
+        b.overrideTerraformCoreVersion(providerFunctionsTfCoreVersion)
+    }
+
     return Project{
         id(projectId)
         name = featureBranchProviderFunctionsName
@@ -76,10 +83,9 @@ fun featureBranchProviderFunctionSubProject(allConfig: AllContextParameters): Pr
         vcsRoot(HashicorpVCSRootBeta_featureBranchProviderFunctions)
 
         // Register all build configs in the project
-        buildType(buildConfigHashiCorpGa)
-        buildType(buildConfigModularMagicianGa)
-        buildType(buildConfigHashiCorpBeta)
-        buildType(buildConfigModularMagicianBeta)
+        allBuildConfigs.forEach{ b ->
+            buildType(b)
+        }
 
         params {
             readOnlySettings()

@@ -253,9 +253,16 @@ fun ParametrizedWithType.readOnlySettings() {
 
 // ParametrizedWithType.terraformCoreBinaryTesting sets environment variables that control what Terraform version is downloaded
 // and ensures the testing framework uses that downloaded version
-fun ParametrizedWithType.terraformCoreBinaryTesting() {
-    text("env.TERRAFORM_CORE_VERSION", DefaultTerraformCoreVersion, "The version of Terraform Core which should be used for testing")
+fun ParametrizedWithType.terraformCoreBinaryTesting(tfVersion: String = DefaultTerraformCoreVersion) {
+    text("env.TERRAFORM_CORE_VERSION", tfVersion, "The version of Terraform Core which should be used for testing")
     hiddenVariable("env.TF_ACC_TERRAFORM_PATH", "%system.teamcity.build.checkoutDir%/tools/terraform", "The path where the Terraform Binary is located. Used by the testing framework.")
+}
+
+// BuildType.overrideTerraformCoreVersion is used to override the value of TERRAFORM_CORE_VERSION in special cases where we're testing new features
+fun BuildType.overrideTerraformCoreVersion(tfVersion: String){
+    params {
+        terraformCoreBinaryTesting(tfVersion)
+    }
 }
 
 fun ParametrizedWithType.terraformShouldPanicForSchemaErrors() {
