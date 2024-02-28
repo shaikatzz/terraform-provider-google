@@ -31,6 +31,12 @@ fun BuildConfigurationsForPackages(packages: Map<String, Map<String, String>>, p
     return list
 }
 
+fun BuildConfigurationForSinglePackage(packageName: String, packagePath: String, packageDisplayName: String, providerName: String, parentProjectName: String, vcsRoot: GitVcsRoot, sharedResources: List<String>, environmentVariables: AccTestConfiguration): BuildType{
+
+    val pkg = PackageDetails(packageName, packageDisplayName, providerName, parentProjectName)
+    return pkg.buildConfiguration(packagePath, vcsRoot, sharedResources, environmentVariables)
+}
+
 class PackageDetails(private val packageName: String, private val displayName: String, private val providerName: String, private val parentProjectName: String) {
 
     // buildConfiguration returns a BuildType for a service package
