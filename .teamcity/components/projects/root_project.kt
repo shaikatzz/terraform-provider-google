@@ -12,6 +12,7 @@ import SharedResourceNameGa
 import SharedResourceNameVcr
 import builds.AllContextParameters
 import builds.readOnlySettings
+import feature_branches.featureBranchProviderFunctionSubProject
 import generated.PackagesListBeta
 import generated.PackagesListGa
 import generated.ServicesListBeta
@@ -60,6 +61,9 @@ fun googleCloudRootProject(allConfig: AllContextParameters): Project {
         subProject(googleSubProjectGa(allConfig))
         subProject(googleSubProjectBeta(allConfig))
         subProject(projectSweeperSubProject(allConfig))
+
+        // Feature branch-testing projects - these will be added and removed as needed
+        subProject(featureBranchProviderFunctionSubProject(allConfig))
 
         params {
             readOnlySettings()
