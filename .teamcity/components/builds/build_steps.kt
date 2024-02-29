@@ -66,7 +66,7 @@ fun BuildSteps.downloadTerraformBinary() {
     step(ScriptBuildStep {
         name = "Download Terraform (version set by environment variable TERRAFORM_CORE_VERSION)"
         scriptContent = """
-        echo "Downloading Terraform version %env.TERRAFORM_CORE_VERSION%"
+        echo \"Downloading Terraform version %env.TERRAFORM_CORE_VERSION%\"
         #!/bin/bash
         mkdir -p tools
         wget -O tf.zip %s
