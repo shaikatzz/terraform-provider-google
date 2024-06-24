@@ -3,12 +3,14 @@
 package storagetransfer
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
 	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
 	"github.com/hashicorp/terraform-provider-google/google/verify"
@@ -66,6 +68,50 @@ func ResourceStorageTransferJob() *schema.Resource {
 
 		CustomizeDiff: customdiff.All(
 			tpgresource.DefaultProviderProject,
+			func(_ context.Context, d *schema.ResourceDiff, meta interface{}) error {
+				rawConfig := d.GetRawConfig()
+				// Get value from transfer_spec.0.gcs_data_sink.0.path
+				transferSpecConfig := rawConfig.GetAttr("transfer_spec")
+				gcsDataSinkConfig := transferSpecConfig.Index(cty.NumberIntVal(0)).GetAttr("gcs_data_sink")
+				pathConfig := gcsDataSinkConfig.Index(cty.NumberIntVal(0)).GetAttr("path")
+				if pathConfig.IsKnown() && !pathConfig.IsNull() && (pathConfig.AsString() != "") {
+					// Path is known, non-null, and set as a non-empty string in the config
+					return nil
+				}
+
+				rawState := d.GetRawState()
+				// Get value from transfer_spec.0.gcs_data_sink.0.path
+				transferSpecState := rawState.GetAttr("transfer_spec")
+				gcsDataSinkState := transferSpecState.Index(cty.NumberIntVal(0)).GetAttr("gcs_data_sink")
+				pathState := gcsDataSinkState.Index(cty.NumberIntVal(0)).GetAttr("path")
+
+				if pathState.IsKnown() && !pathState.IsNull() && (pathState.AsString() != "") {
+					// Path is known, non-null, and is a non-empty string in state
+					if pathConfig.IsKnown() && !pathConfig.IsNull() && (pathConfig.AsString() == "") {
+						// Path is known, non-null, and set as an empty string in the config
+						// Trigger a diff
+						var emptyString interface{} = ""
+						// Only want to set transfer_spec.0.gcs_data_sink.0.path,
+						// but we need to set from a top level field: "Cannot set new diff value for key transfer_spec.0.gcs_data_sink.0.path: transfer_spec.0.gcs_data_sink.0.path: can only set full list"
+						// So, this isn't possible: d.SetNew("transfer_spec.0.gcs_data_sink.0.path", ...)
+
+						// Instead, try to overwrite the whole transfer_spec from the top down
+						// BUT then hit the issue that transfer_spec isn't Computed and is incompatible with SetNew
+						return d.SetNew("transfer_spec", []map[string]any{
+							{
+								// We would need to provide values for all the nested fields
+								// alongside gcs_data_sink
+								"gcs_data_sink": []map[string]any{
+									{
+										"path": emptyString,
+									},
+								},
+							}})
+					}
+
+				}
+				return nil
+			},
 		),
 
 		Schema: map[string]*schema.Schema{
