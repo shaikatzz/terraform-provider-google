@@ -60,15 +60,18 @@ func dataSourceGoogleKmsCryptoKeysRead(d *schema.ResourceData, meta interface{})
 		return err
 	}
 
-	keys := res["cryptoKeys"].([]interface{})
-
-	if err := d.Set("keys", flattenKMSKeysList(d, config, keys)); err != nil {
-		return fmt.Errorf("error setting keys: %s", err)
+	// Check for cryptoKeys field, as empty response lacks keys
+	// If found, set data in the data source's `keys` field
+	if keys, ok := res["cryptoKeys"].([]interface{}); ok {
+		if err := d.Set("keys", flattenKMSKeysList(d, config, keys)); err != nil {
+			return fmt.Errorf("error setting keys: %s", err)
+		}
 	}
 
-	if err := tpgresource.SetDataSourceLabels(d); err != nil {
-		return err
-	}
+	// PER KEY
+	// if err := tpgresource.SetDataSourceLabels(d); err != nil {
+	// 	return err
+	// }
 
 	if d.Id() == "" {
 		return fmt.Errorf("%s not found", id)
@@ -86,6 +89,13 @@ func dataSourceKMSCryptoKeysList(d *schema.ResourceData, meta interface{}) (map[
 	url, err := tpgresource.ReplaceVars(d, config, "{{KMSBasePath}}{{key_ring}}/cryptoKeys")
 	if err != nil {
 		return nil, err
+	}
+
+	if filter, ok := d.GetOk("filter"); ok {
+		url, err = transport_tpg.AddQueryParams(url, map[string]string{"filter": filter.(string)})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	billingProject := ""
