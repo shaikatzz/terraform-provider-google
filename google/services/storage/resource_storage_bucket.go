@@ -699,7 +699,8 @@ func resourceStorageBucketCreate(d *schema.ResourceData, meta interface{}) error
 			res, err = insertCall.Do()
 			return err
 		},
-		Timeout: d.Timeout(schema.TimeoutCreate),
+		Timeout:                     d.Timeout(schema.TimeoutCreate),
+		ErrorRetryBackoffPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.Is429RetryableQuotaError},
 	})
 
 	if err != nil {
@@ -717,8 +718,9 @@ func resourceStorageBucketCreate(d *schema.ResourceData, meta interface{}) error
 			_, retryErr := config.NewStorageClient(userAgent).Buckets.Get(res.Name).Do()
 			return retryErr
 		},
-		Timeout:              d.Timeout(schema.TimeoutCreate),
-		ErrorRetryPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.IsNotFoundRetryableError("bucket creation")},
+		Timeout:                     d.Timeout(schema.TimeoutCreate),
+		ErrorRetryPredicates:        []transport_tpg.RetryErrorPredicateFunc{transport_tpg.IsNotFoundRetryableError("bucket creation")},
+		ErrorRetryBackoffPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.Is429RetryableQuotaError},
 	})
 
 	if err != nil {
@@ -888,8 +890,9 @@ func resourceStorageBucketUpdate(d *schema.ResourceData, meta interface{}) error
 			_, retryErr := config.NewStorageClient(userAgent).Buckets.Get(res.Name).Do()
 			return retryErr
 		},
-		Timeout:              d.Timeout(schema.TimeoutUpdate),
-		ErrorRetryPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.IsNotFoundRetryableError("bucket update")},
+		Timeout:                     d.Timeout(schema.TimeoutUpdate),
+		ErrorRetryPredicates:        []transport_tpg.RetryErrorPredicateFunc{transport_tpg.IsNotFoundRetryableError("bucket update")},
+		ErrorRetryBackoffPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.Is429RetryableQuotaError},
 	})
 
 	if err != nil {
@@ -939,8 +942,9 @@ func resourceStorageBucketRead(d *schema.ResourceData, meta interface{}) error {
 			res, retryErr = config.NewStorageClient(userAgent).Buckets.Get(bucket).Do()
 			return retryErr
 		},
-		Timeout:              d.Timeout(schema.TimeoutRead),
-		ErrorRetryPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.IsNotFoundRetryableError("bucket read")},
+		Timeout:                     d.Timeout(schema.TimeoutRead),
+		ErrorRetryPredicates:        []transport_tpg.RetryErrorPredicateFunc{transport_tpg.IsNotFoundRetryableError("bucket read")},
+		ErrorRetryBackoffPredicates: []transport_tpg.RetryErrorPredicateFunc{transport_tpg.Is429RetryableQuotaError},
 	})
 
 	if err != nil {

@@ -206,7 +206,7 @@ func (t *retryTransport) checkForRetryableError(resp *http.Response, respErr err
 	if errToCheck == nil {
 		return nil
 	}
-	if IsRetryableError(errToCheck, t.retryPredicates, nil) {
+	if IsRetryableError(errToCheck, t.retryPredicates, nil, nil) {
 		return retry.RetryableError(errToCheck)
 	}
 	return retry.NonRetryableError(errToCheck)

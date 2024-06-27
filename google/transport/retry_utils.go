@@ -11,11 +11,12 @@ import (
 )
 
 type RetryOptions struct {
-	RetryFunc            func() error
-	Timeout              time.Duration
-	PollInterval         time.Duration
-	ErrorRetryPredicates []RetryErrorPredicateFunc
-	ErrorAbortPredicates []RetryErrorPredicateFunc
+	RetryFunc                   func() error
+	Timeout                     time.Duration
+	PollInterval                time.Duration
+	ErrorRetryPredicates        []RetryErrorPredicateFunc
+	ErrorAbortPredicates        []RetryErrorPredicateFunc
+	ErrorRetryBackoffPredicates []RetryErrorPredicateFunc
 }
 
 func Retry(opt RetryOptions) error {
@@ -31,7 +32,7 @@ func Retry(opt RetryOptions) error {
 			}
 
 			// Check if it is a retryable error.
-			if IsRetryableError(err, opt.ErrorRetryPredicates, opt.ErrorAbortPredicates) {
+			if IsRetryableError(err, opt.ErrorRetryPredicates, opt.ErrorAbortPredicates, wrapErrorRetryBackoffPredicates(opt.ErrorRetryBackoffPredicates)) {
 				return "", "retrying", nil
 			}
 
@@ -59,14 +60,14 @@ func Retry(opt RetryOptions) error {
 		if err == nil {
 			return nil
 		}
-		if IsRetryableError(err, opt.ErrorRetryPredicates, opt.ErrorAbortPredicates) {
+		if IsRetryableError(err, opt.ErrorRetryPredicates, opt.ErrorAbortPredicates, wrapErrorRetryBackoffPredicates(opt.ErrorRetryBackoffPredicates)) {
 			return retry.RetryableError(err)
 		}
 		return retry.NonRetryableError(err)
 	})
 }
 
-func IsRetryableError(topErr error, retryPredicates, abortPredicates []RetryErrorPredicateFunc) bool {
+func IsRetryableError(topErr error, retryPredicates, abortPredicates, retryBackoffPredicates []RetryErrorPredicateFunc) bool {
 	if topErr == nil {
 		return false
 	}
@@ -74,7 +75,9 @@ func IsRetryableError(topErr error, retryPredicates, abortPredicates []RetryErro
 	retryPredicates = append(
 		// Global error retry predicates are registered in this default list.
 		defaultErrorRetryPredicates,
-		retryPredicates...)
+		retryPredicates...,
+	)
+	retryPredicates = append(retryPredicates, retryBackoffPredicates...)
 
 	// Check all wrapped errors for an abortable error status.
 	isAbortable := false

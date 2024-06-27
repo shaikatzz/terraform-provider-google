@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"time"
@@ -19,16 +21,76 @@ import (
 var DefaultRequestTimeout = 5 * time.Minute
 
 type SendRequestOptions struct {
-	Config               *Config
-	Method               string
-	Project              string
-	RawURL               string
-	UserAgent            string
-	Body                 map[string]any
-	Timeout              time.Duration
-	Headers              http.Header
-	ErrorRetryPredicates []RetryErrorPredicateFunc
-	ErrorAbortPredicates []RetryErrorPredicateFunc
+	Config                      *Config
+	Method                      string
+	Project                     string
+	RawURL                      string
+	UserAgent                   string
+	Body                        map[string]any
+	Timeout                     time.Duration
+	Headers                     http.Header
+	ErrorRetryPredicates        []RetryErrorPredicateFunc
+	ErrorAbortPredicates        []RetryErrorPredicateFunc
+	ErrorRetryBackoffPredicates []RetryErrorPredicateFunc
+}
+
+func wrapErrorRetryBackoffPredicates(fs []RetryErrorPredicateFunc) []RetryErrorPredicateFunc {
+	if fs == nil {
+		return fs
+	}
+	wrappedFuncs := make([]RetryErrorPredicateFunc, len(fs))
+	for _, f := range fs {
+
+		// Each function is wrapped with a closure with its own backoff struct
+		funcToWrap := f
+		backoff := struct {
+			attempts       int64
+			lastSleep      int64
+			minimumBackoff time.Duration
+			maximumBackoff time.Duration
+		}{
+			minimumBackoff: time.Duration(200),      // 200 ns
+			maximumBackoff: time.Duration(60 * 1e9), // 60 seconds
+		}
+
+		var wf RetryErrorPredicateFunc = func(err error) (bool, string) {
+			// Reuse backoff struct via closure
+			b := &backoff
+
+			isRetryable, msg := funcToWrap(err)
+			if isRetryable {
+				log.Printf("[DEBUG] Retryable error with backoff starting")
+
+				// Sleep for period based on number of attempts so far
+				// https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+				// sleep = random_between(0, min(upperBound, base * 2 ** attempt))
+				lowerBound := b.minimumBackoff
+				upperBound := int64(math.Min(float64(b.maximumBackoff.Nanoseconds()), float64(b.lastSleep*int64(2)^b.attempts)))
+
+				r := rand.New(rand.NewSource(time.Now().UnixNano()))
+				sleep := r.Int63n((upperBound - lowerBound.Nanoseconds() + 1) + lowerBound.Nanoseconds())
+
+				time.Sleep(time.Duration(sleep))
+				switch {
+				case time.Duration(sleep).Seconds() >= 1:
+					log.Printf("[DEBUG] Slept for %s second(s)", time.Duration(sleep).Seconds())
+				case time.Duration(sleep).Milliseconds() >= 1:
+					log.Printf("[DEBUG] Slept for %s milliseconds(s)", time.Duration(sleep).Milliseconds())
+				case time.Duration(sleep).Microseconds() >= 1:
+					log.Printf("[DEBUG] Slept for %s microseconds(s)", time.Duration(sleep).Microseconds())
+				default:
+					log.Printf("[DEBUG] Slept for %s nanosecond(s)", time.Duration(sleep).Nanoseconds())
+				}
+
+				// Update backoff struct for next time
+				b.attempts += 1
+				b.lastSleep = sleep
+			}
+			return isRetryable, msg
+		}
+		wrappedFuncs = append(wrappedFuncs, wf)
+	}
+	return wrappedFuncs
 }
 
 func SendRequest(opt SendRequestOptions) (map[string]interface{}, error) {
@@ -88,9 +150,10 @@ func SendRequest(opt SendRequestOptions) (map[string]interface{}, error) {
 
 			return nil
 		},
-		Timeout:              opt.Timeout,
-		ErrorRetryPredicates: opt.ErrorRetryPredicates,
-		ErrorAbortPredicates: opt.ErrorAbortPredicates,
+		Timeout:                     opt.Timeout,
+		ErrorRetryPredicates:        opt.ErrorRetryPredicates,
+		ErrorAbortPredicates:        opt.ErrorAbortPredicates,
+		ErrorRetryBackoffPredicates: opt.ErrorRetryBackoffPredicates,
 	})
 	if err != nil {
 		return nil, err

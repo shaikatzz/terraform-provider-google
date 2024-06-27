@@ -20,6 +20,23 @@ import (
 	"google.golang.org/api/storage/v1"
 )
 
+func TestAccStorageBucket_thousandBuckets(t *testing.T) {
+	t.Parallel()
+
+	bucketName := acctest.TestBucketName(t)
+
+	acctest.VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
+		CheckDestroy:             testAccStorageBucketDestroyProducer(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccStorageBucket_1000_buckets(bucketName),
+			},
+		},
+	})
+}
+
 func TestAccStorageBucket_basic(t *testing.T) {
 	t.Parallel()
 
@@ -1727,6 +1744,16 @@ resource "google_storage_bucket" "bucket" {
   location = "US"
 }
 `, bucketName)
+}
+
+func testAccStorageBucket_1000_buckets(bucketNamePrefix string) string {
+	return fmt.Sprintf(`
+resource "google_storage_bucket" "bucket" {
+  count = 1000
+  name     = "%s-${count.index}"
+  location = "US"
+}
+`, bucketNamePrefix)
 }
 
 func testAccStorageBucket_basicWithAutoclass(bucketName string, autoclass bool) string {

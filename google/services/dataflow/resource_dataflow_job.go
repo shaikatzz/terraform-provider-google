@@ -697,7 +697,7 @@ func waitForDataflowJobToBeUpdated(d *schema.ResourceData, config *transport_tpg
 
 		replacementJob, err := resourceDataflowJobGetJob(config, project, region, userAgent, replacementJobID)
 		if err != nil {
-			if transport_tpg.IsRetryableError(err, nil, nil) {
+			if transport_tpg.IsRetryableError(err, nil, nil, nil) {
 				return retry.RetryableError(err)
 			}
 			return retry.NonRetryableError(err)
